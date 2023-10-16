@@ -4,18 +4,18 @@ import ClienteRepositorio from "../../core/ClienteRepositorio";
 
 export default class ColecaoCliente implements ClienteRepositorio {
 
-    #conversor = {
-        toFirestore(cliente: Cliente) {
+    #conversor: firebase.firestore.FirestoreDataConverter<Cliente> = {
+        toFirestore(cliente: Cliente): firebase.firestore.DocumentData {
             return {
                 nome: cliente.nome,
                 idade: cliente.idade
-            }
+            };
         },
-        fromFireStore(snapshot: firebase.firestore.QueryDocumentSnapshot, options: firebase.firestore.SnapshotOptions): Cliente {
-            const dados = snapshot?.data(options)
-            return new Cliente(dados.nome, dados.idade, snapshot.id)
+        fromFirestore(snapshot: firebase.firestore.QueryDocumentSnapshot<firebase.firestore.DocumentData>, options: firebase.firestore.SnapshotOptions): Cliente {
+            const dados = snapshot.data(options);
+            return new Cliente(dados.nome, dados.idade, snapshot.id);
         }
-    }
+    };
 
     async salvar(cliente: Cliente): Promise<Cliente> {
         if (cliente?.id) {
@@ -24,7 +24,8 @@ export default class ColecaoCliente implements ClienteRepositorio {
         } else {
             const docRef = await this.colecao().add(cliente)
             const doc = await docRef.get()
-            return doc.data()
+            const clienteSalvo = doc.data() as Cliente; // Converte o resultado para o tipo Cliente
+            return Promise.resolve(clienteSalvo);
         }
     }
 
@@ -33,8 +34,15 @@ export default class ColecaoCliente implements ClienteRepositorio {
     }
 
     async obterTodos(): Promise<Cliente[]> {
-        const query = await this.colecao().get()
-        return query.docs.map(doc => doc.data() ?? []) 
+        const query = await this.colecao().get();
+        const clientes: Cliente[] = [];
+    
+        await Promise.all(query.docs.map(async (doc) => {
+            const cliente = doc.data() as Cliente;
+            clientes.push(cliente);
+        }));
+    
+        return clientes;
     }
 
     private colecao() {
